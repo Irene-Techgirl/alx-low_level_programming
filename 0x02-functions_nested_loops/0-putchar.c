@@ -1,7 +1,9 @@
 #include "main.h"
+
 /**
  * main - print _putchar
- * Return: Always 0
+ * is written by irene
+ * Return: 0
  */
 
 int main(void)
