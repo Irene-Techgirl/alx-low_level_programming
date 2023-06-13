@@ -25,13 +25,18 @@ void close_elf(int elf);
  */
 void check_elf(unsigned char *e_ident)
 {
-	if (e_ident[EI_MAG0] != ELFMAG0 ||
-	    e_ident[EI_MAG1] != ELFMAG1 ||
-	    e_ident[EI_MAG2] != ELFMAG2 ||
-	    e_ident[EI_MAG3] != ELFMAG3)
+	int index;
+
+	for (index = 0; index < 4; index++)
 	{
-		dprintf(STDERR_FILENO, "Error: Not an ELF file\n");
-		exit(98);
+		if (e_ident[index] != 127 &&
+		    e_ident[index] != 'E' &&
+		    e_ident[index] != 'L' &&
+		    e_ident[index] != 'F')
+		{
+			dprintf(STDERR_FILENO, "Error: Not an ELF file\n");
+			exit(98);
+		}
 	}
 }
 
@@ -107,12 +112,13 @@ void print_data(unsigned char *e_ident)
 }
 
 /**
- * print_version - Prints the version of an ELF header.
- * @e_ident: A pointer to an array containing the ELF version.
- */
+ *  * print_version - Prints the version of an ELF header.
+ *   * @e_ident: A pointer to an array containing the ELF version.
+ *    */
 void print_version(unsigned char *e_ident)
 {
-	printf(" Version: %d", e_ident[EI_VERSION]);
+	 printf(" Version: %d",
+			  e_ident[EI_VERSION]);
 
 	switch (e_ident[EI_VERSION])
 	{
@@ -176,7 +182,8 @@ void print_osabi(unsigned char *e_ident)
  */
 void print_abi(unsigned char *e_ident)
 {
-	printf(" ABI Version: %d\n", e_ident[EI_ABIVERSION]);
+	printf(" ABI Version: %d\n",
+		e_ident[EI_ABIVERSION]);
 }
 
 /**
@@ -187,7 +194,7 @@ void print_abi(unsigned char *e_ident)
 void print_type(unsigned int e_type, unsigned char *e_ident)
 {
 	if (e_ident[EI_DATA] == ELFDATA2MSB)
-		e_type = (e_type >> 8) & 0xFF;
+		e_type >>= 8;
 
 	printf(" Type: ");
 
@@ -222,8 +229,16 @@ void print_entry(unsigned long int e_entry, unsigned char *e_ident)
 {
 	printf(" Entry point address: ");
 
+	if (e_ident[EI_DATA] == ELFDATA2MSB)
+	{
+		e_entry = ((e_entry << 8) & 0xFF00FF00) |
+			  ((e_entry >> 8) & 0xFF00FF);
+		e_entry = (e_entry << 16) | (e_entry >> 16);
+	}
+
 	if (e_ident[EI_CLASS] == ELFCLASS32)
 		printf("%#x\n", (unsigned int)e_entry);
+
 	else
 		printf("%#lx\n", e_entry);
 }
@@ -238,7 +253,8 @@ void close_elf(int elf)
 {
 	if (close(elf) == -1)
 	{
-		dprintf(STDERR_FILENO, "Error: Can't close fd %d\n", elf);
+		dprintf(STDERR_FILENO,
+			"Error: Can't close fd %d\n", elf);
 		exit(98);
 	}
 }
@@ -254,38 +270,30 @@ void close_elf(int elf)
  * Description: If the file is not an ELF File or
  * the function fails - exit code 98.
  */
-int main(int argc, char *argv[])
+int main(int __attribute__((__unused__)) argc, char *argv[])
 {
 	Elf64_Ehdr *header;
-	int fd, bytes_read;
+	int o, r;
 
-	if (argc != 2)
+	o = open(argv[1], O_RDONLY);
+	if (o == -1)
 	{
-		fprintf(stderr, "Usage: %s <ELF file>\n", argv[0]);
-		exit(1);
-	}
-
-	fd = open(argv[1], O_RDONLY);
-	if (fd == -1)
-	{
-		perror("Error");
+		dprintf(STDERR_FILENO, "Error: Can't read file %s\n", argv[1]);
 		exit(98);
 	}
-
 	header = malloc(sizeof(Elf64_Ehdr));
 	if (header == NULL)
 	{
-		perror("Error");
-		close_elf(fd);
+		close_elf(o);
+		dprintf(STDERR_FILENO, "Error: Can't read file %s\n", argv[1]);
 		exit(98);
 	}
-
-	bytes_read = read(fd, header, sizeof(Elf64_Ehdr));
-	if (bytes_read == -1)
+	r = read(o, header, sizeof(Elf64_Ehdr));
+	if (r == -1)
 	{
-		perror("Error");
 		free(header);
-		close_elf(fd);
+		close_elf(o);
+		dprintf(STDERR_FILENO, "Error: `%s`: No such file\n", argv[1]);
 		exit(98);
 	}
 
@@ -301,6 +309,6 @@ int main(int argc, char *argv[])
 	print_entry(header->e_entry, header->e_ident);
 
 	free(header);
-	close_elf(fd);
+	close_elf(o);
 	return (0);
 }
